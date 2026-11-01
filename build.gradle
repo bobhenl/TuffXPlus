@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'tf.tuff'
-version = '1.1.2-beta-heartsmp3'
+version = '1.1.2-beta-heartsmp4'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17

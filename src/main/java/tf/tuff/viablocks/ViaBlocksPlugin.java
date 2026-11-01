@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 
 import org.bukkit.Material;
@@ -19,6 +20,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
+
+import com.viaversion.viaversion.api.Via;
 
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -47,6 +50,14 @@ public final class ViaBlocksPlugin {
 	private boolean enabled;
 	private boolean debug;
 	private boolean sendWelcomeBook;
+	private boolean onlyLegacyClients = true;
+	private int maxClientProtocol = DEFAULT_MAX_CLIENT_PROTOCOL;
+
+	/** 1.16.5. Clients on 1.17+ already know every block ViaBlocks would add. */
+	public static final int DEFAULT_MAX_CLIENT_PROTOCOL = 754;
+
+	/** Client protocol per player, -1 when unknown. Replaceable in tests. */
+	ToIntFunction<UUID> protocolLookup = ViaBlocksPlugin::viaProtocolVersion;
 
 	public VersionAdapter versionAdapter;
 
@@ -85,6 +96,7 @@ public final class ViaBlocksPlugin {
 		if (enabled && blockListener != null) {
 			for (Player player : plugin.getServer().getOnlinePlayers()) {
 				if (!previouslyEnabledPlayers.contains(player.getUniqueId())) continue;
+				if (!isClientAllowed(player)) continue;
 				setPlayerEnabled(player, true);
 				blockListener.onViaBlocksPlayerJoin(player);
 			}
@@ -124,7 +136,13 @@ public final class ViaBlocksPlugin {
 	public void handlePacket(Player player, byte[] message) {
 		if (!isEnabled() || blockListener == null) return;
 		if (!isPlayerEnabled(player) && isEnabled()) {
+			if (!isClientAllowed(player)) {
+				debug("Ignoring ViaBlocks handshake from " + player.getName() + " (client protocol " + protocolLookup.applyAsInt(player.getUniqueId()) + " is above " + maxClientProtocol + ").");
+				return;
+			}
 			debug("Received ViaBlocks handshake from player: " + player.getName() + ". Enabling custom blocks.");
+			// Block handlers do nothing while no ViaBlocks player is online, so drop what may have gone stale meanwhile
+			if (viaBlocksEnabledPlayers.isEmpty()) blockListener.resetWorldState();
 			setPlayerEnabled(player, true);
 
 			blockListener.onViaBlocksPlayerJoin(player);
@@ -147,6 +165,29 @@ public final class ViaBlocksPlugin {
 		String mode = plugin.getConfig().getString("viablocks.sync-mode");
 		if (mode == null) mode = "normal";
 		this.updateBatchDelayTicks = mode.equalsIgnoreCase("reduced") ? 10L : 1L;
+
+		onlyLegacyClients = plugin.getConfig().getBoolean("viablocks.only-legacy-clients", true);
+		maxClientProtocol = plugin.getConfig().getInt("viablocks.max-client-protocol", DEFAULT_MAX_CLIENT_PROTOCOL);
+	}
+
+	public static int viaProtocolVersion(UUID playerId) {
+		try {
+			return Via.getAPI().getPlayerVersion(playerId);
+		} catch (Throwable t) {
+			return -1;
+		}
+	}
+
+	/** With only-legacy-clients on, only clients whose protocol is known and at most max-client-protocol get ViaBlocks. */
+	public boolean isClientAllowed(Player player) {
+		if (!onlyLegacyClients) return true;
+		int protocol = protocolLookup.applyAsInt(player.getUniqueId());
+		return protocol > 0 && protocol <= maxClientProtocol;
+	}
+
+	/** True when ViaBlocks is on and at least one player uses it, i.e. block events are worth handling. */
+	public boolean isActive() {
+		return enabled && !viaBlocksEnabledPlayers.isEmpty();
 	}
 
 	public void onTuffXDisable(){

@@ -24,6 +24,11 @@ y0:
   # Kick outdated clients that (generally) not compatible with this version of TuffX
   kick-outdated-clients: false
 
+  # Only give y0 data to clients that need it: protocol at most max-client-protocol (754 = 1.16.5).
+  # Players on 1.17+ clients are ignored completely, even if they send the y0 handshake.
+  only-legacy-clients: true
+  max-client-protocol: 754
+
 
 #  ||\\ ||== //_\\ <>  //= ==== ||\\ \\//
 #  ||// ||== || __ ||  \\   ||  ||//  ||
@@ -56,6 +61,11 @@ viablocks:
   # normal: base speed for fast sync.
   # reduced: much slower updates to minimize client lag.
   sync-mode: normal
+
+  # Only give ViaBlocks to clients that need it: protocol at most max-client-protocol (754 = 1.16.5).
+  # Players on 1.17+ clients are ignored completely, even if they send the ViaBlocks handshake.
+  only-legacy-clients: true
+  max-client-protocol: 754
 
 
 # \\    // <>   //\\   ||== ||\ || ==== <> ==== <> ||==  //=

@@ -401,7 +401,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockPlace(BlockPlaceEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		handleModernBlockChange(
 			event.getBlockReplacedState().getBlockData(),
 			event.getBlock().getBlockData(),
@@ -410,7 +410,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockBreak(BlockBreakEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		Block block = event.getBlock();
 		BlockData data = block.getBlockData();
 		Location loc = block.getLocation();
@@ -429,7 +429,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockExplode(BlockExplodeEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		for (Block block : event.blockList()) {
 			handleModernBlockChange(
 				block.getBlockData(),
@@ -440,7 +440,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockFromTo(BlockFromToEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		Block destroyedBlock = event.getToBlock();
 		handleModernBlockChange(
 			destroyedBlock.getBlockData(),
@@ -450,7 +450,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockGrow(BlockGrowEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -459,7 +459,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockFade(BlockFadeEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -468,7 +468,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockForm(BlockFormEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -477,7 +477,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockSpread(BlockSpreadEvent event) {
-		if (!plugin.isEnabled()) return;
+		if (!plugin.isActive()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -486,8 +486,8 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockPhysics(BlockPhysicsEvent event) {
-		// Physics fires for every neighbour update, so bail out first when ViaBlocks is off
-		if (!plugin.isEnabled()) return;
+		// Physics fires for every neighbour update, so bail out first when ViaBlocks is off or unused
+		if (!plugin.isActive()) return;
 		Block block = event.getBlock();
 		if (isModernMaterial(block.getType())) {
 			BlockData data = block.getBlockData();
@@ -635,6 +635,12 @@ public class CustomBlockListener {
 				SchedulerCompat.sendPluginMessage(plugin.plugin, player, ViaBlocksPlugin.CLIENTBOUND_CHANNEL, data);
 			}
 		});
+	}
+
+	/** Drops chunk and block-change state that is not kept up to date while no ViaBlocks player is online. */
+	public void resetWorldState() {
+		chunkPacketCache.invalidateAll();
+		recentModernChanges.invalidateAll();
 	}
 
 	public void clearCache() {

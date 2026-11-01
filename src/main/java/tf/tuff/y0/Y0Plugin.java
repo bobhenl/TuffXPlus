@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
 
@@ -63,6 +64,9 @@ public class Y0Plugin {
 	private int cacheExp;
 	private int concLevel;
 	private boolean kickOutdatedClients;
+	private boolean onlyLegacyClients = true;
+	private int maxClientProtocol = tf.tuff.viablocks.ViaBlocksPlugin.DEFAULT_MAX_CLIENT_PROTOCOL;
+	ToIntFunction<UUID> protocolLookup = tf.tuff.viablocks.ViaBlocksPlugin::viaProtocolVersion;
 
 	private final Set<UUID> readyPlayers = ConcurrentHashMap.newKeySet();
 	private volatile Cache<WorldChunk, ObjectArrayList<byte[]>> chunkCache;
@@ -155,6 +159,8 @@ public class Y0Plugin {
 		cacheExp = plugin.getConfig().getInt("y0.cache-expiration");
 		concLevel = Runtime.getRuntime().availableProcessors();
 		kickOutdatedClients = plugin.getConfig().getBoolean("y0.kick-outdated-clients");
+		onlyLegacyClients = plugin.getConfig().getBoolean("y0.only-legacy-clients", true);
+		maxClientProtocol = plugin.getConfig().getInt("y0.max-client-protocol", tf.tuff.viablocks.ViaBlocksPlugin.DEFAULT_MAX_CLIENT_PROTOCOL);
 	}
 
 	private void startup() {
@@ -274,6 +280,11 @@ public class Y0Plugin {
 
 		switch (subchannel.toLowerCase()) {
 			case "ready2":
+				if (!isClientAllowed(player)) {
+					debug("Ignoring y0 handshake from " + player.getName() + " (client protocol " + protocolLookup.applyAsInt(player.getUniqueId()) + " is above " + maxClientProtocol + ").");
+					SchedulerCompat.sendPluginMessage(plugin, player, CHANNEL, y0StatusPkt(false));
+					break;
+				}
 				debug("Player " + player.getName() + " is READY.");
 				readyPlayers.add(player.getUniqueId());
 				if (enabledWorlds.contains(player.getWorld().getName())) {
@@ -295,6 +306,17 @@ public class Y0Plugin {
 					player.kickPlayer("§cYour client is not compatible with the version of §6TuffX§c the server has installed!\n§7Please update your client.");
 				}
 		}
+	}
+
+	/** With only-legacy-clients on, only clients whose protocol is known and at most max-client-protocol get y0 data. */
+	public boolean isClientAllowed(Player player) {
+		if (!onlyLegacyClients) return true;
+		int protocol = protocolLookup.applyAsInt(player.getUniqueId());
+		return protocol > 0 && protocol <= maxClientProtocol;
+	}
+
+	boolean isReady(UUID id) {
+		return readyPlayers.contains(id);
 	}
 
 	private void preCacheVisibleChunks(Player player) {
