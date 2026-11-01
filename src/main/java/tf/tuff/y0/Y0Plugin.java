@@ -75,6 +75,7 @@ public class Y0Plugin {
 
 	private TuffX plugin;
 
+	private final Map<Material, int[]> airLegacy = new ConcurrentHashMap<>();
 	private static final int[] EMPTY_LEGACY = {1, 0};
 
 	private static final Map<BlockData, Integer> emissionCache = new ConcurrentHashMap<>();
@@ -237,6 +238,7 @@ public class Y0Plugin {
 		readyPlayers.clear();
 
 		if (viaIds != null) viaIds = null;
+		airLegacy.clear();
 	}
 
 	public boolean isPlayerReady(Player player) {
@@ -680,12 +682,23 @@ public class Y0Plugin {
 				for (int y = 0; y < 16; y++) {
 					int wy = by + y;
 
-					BlockData blkData = s.getBlockData(xx, wy, zz);
-					int[] ld = c.get(blkData); // Fast map lookup
+					int[] ld;
+					Material type = s.getBlockType(xx, wy, zz);
+					if (type.isAir()) {
+						// Air blocks have no states, so skip the BlockData clone and map lookup
+						ld = airLegacy.get(type);
+						if (ld == null) {
+							ld = (viaIds != null) ? viaIds.toLegacy(type.createBlockData()) : EMPTY_LEGACY;
+							airLegacy.put(type, ld);
+						}
+					} else {
+						BlockData blkData = s.getBlockData(xx, wy, zz);
+						ld = c.get(blkData); // Fast map lookup
 
-					if (ld == null) { // Avoid getOrDefault overhead
-						ld = (viaIds != null) ? viaIds.toLegacy(blkData) : EMPTY_LEGACY;
-						c.put(blkData, ld);
+						if (ld == null) { // Avoid getOrDefault overhead
+							ld = (viaIds != null) ? viaIds.toLegacy(blkData) : EMPTY_LEGACY;
+							c.put(blkData, ld);
+						}
 					}
 
 					// Bitwise packing

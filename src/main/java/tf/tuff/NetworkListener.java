@@ -20,6 +20,8 @@ public class NetworkListener implements PacketListener {
 		if (event.getPacketType() == PacketType.Play.Server.CHUNK_DATA) {
 			Player player = (Player) event.getPlayer();
 			if (player == null) return;
+			// Decoding the wrapper reads the whole chunk, so skip it for players without the TuffX client
+			if (!plugin.y0Plugin.isPlayerReady(player)) return;
 
 			WrapperPlayServerChunkData wrapper = new WrapperPlayServerChunkData(event);
 			int chunkX = wrapper.getColumn().getX();
