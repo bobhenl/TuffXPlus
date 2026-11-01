@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'tf.tuff'
-version = '1.1.2-beta'
+version = '1.1.2-beta-heartsmp'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -21,12 +21,13 @@ repositories {
     maven { url = 'https://repo.papermc.io/repository/maven-public/' }
     maven { url = 'https://repo.viaversion.com/everything/' }
     maven { url = 'https://repo.codemc.io/repository/maven-releases/' }
+    maven { url = 'https://repo.codemc.io/repository/maven-snapshots/' }
 }
 
 dependencies {
     compileOnly 'org.spigotmc:spigot-api:1.18.2-R0.1-SNAPSHOT'
 
-    implementation 'com.github.retrooper:packetevents-spigot:2.14.0'
+    implementation 'com.github.retrooper:packetevents-spigot:2.14.1-SNAPSHOT'
 
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.22.3'
     implementation 'org.java-websocket:Java-WebSocket:1.6.0'
