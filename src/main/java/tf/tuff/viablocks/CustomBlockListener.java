@@ -401,6 +401,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockPlace(BlockPlaceEvent event) {
+		if (!plugin.isEnabled()) return;
 		handleModernBlockChange(
 			event.getBlockReplacedState().getBlockData(),
 			event.getBlock().getBlockData(),
@@ -409,6 +410,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockBreak(BlockBreakEvent event) {
+		if (!plugin.isEnabled()) return;
 		Block block = event.getBlock();
 		BlockData data = block.getBlockData();
 		Location loc = block.getLocation();
@@ -427,6 +429,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockExplode(BlockExplodeEvent event) {
+		if (!plugin.isEnabled()) return;
 		for (Block block : event.blockList()) {
 			handleModernBlockChange(
 				block.getBlockData(),
@@ -437,6 +440,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockFromTo(BlockFromToEvent event) {
+		if (!plugin.isEnabled()) return;
 		Block destroyedBlock = event.getToBlock();
 		handleModernBlockChange(
 			destroyedBlock.getBlockData(),
@@ -446,6 +450,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockGrow(BlockGrowEvent event) {
+		if (!plugin.isEnabled()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -454,6 +459,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockFade(BlockFadeEvent event) {
+		if (!plugin.isEnabled()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -462,6 +468,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockForm(BlockFormEvent event) {
+		if (!plugin.isEnabled()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -470,6 +477,7 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockSpread(BlockSpreadEvent event) {
+		if (!plugin.isEnabled()) return;
 		handleModernBlockChange(
 			event.getBlock().getBlockData(),
 			event.getNewState().getBlockData(),
@@ -478,6 +486,8 @@ public class CustomBlockListener {
 	}
 
 	public void handleBlockPhysics(BlockPhysicsEvent event) {
+		// Physics fires for every neighbour update, so bail out first when ViaBlocks is off
+		if (!plugin.isEnabled()) return;
 		Block block = event.getBlock();
 		if (isModernMaterial(block.getType())) {
 			BlockData data = block.getBlockData();
@@ -529,7 +539,7 @@ public class CustomBlockListener {
 			stateId = this.paletteManager.getOrCreateId(data.getAsString());
 			blockDataIdCache.put(data, stateId);
 		}
-		if (stateId == -1) return;
+		if (stateId == -1 || plugin.viaBlocksEnabledPlayers.isEmpty()) return;
 
 		scheduleNearbyEnabledPlayers(location, player -> sendPacket(player, stateId, location));
 	}
@@ -656,8 +666,9 @@ public class CustomBlockListener {
 		if (world == null) return;
 
 		SchedulerCompat.runGlobal(plugin.plugin, () -> {
-			for (Player player : Bukkit.getOnlinePlayers()) {
-				if (!plugin.isPlayerEnabled(player)) continue;
+			for (UUID playerId : plugin.viaBlocksEnabledPlayers) {
+				Player player = Bukkit.getPlayer(playerId);
+				if (player == null || !plugin.isPlayerEnabled(player)) continue;
 				SchedulerCompat.runEntity(player, plugin.plugin, () -> {
 					if (!player.isOnline()) return;
 					if (!world.equals(player.getWorld())) return;

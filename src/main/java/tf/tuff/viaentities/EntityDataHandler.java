@@ -16,6 +16,23 @@ public class EntityDataHandler extends ChannelOutboundHandlerAdapter {
 	private final Player player;
 	private final EntityMappingManager entityMappingManager;
 
+	private static final java.lang.reflect.Method[] NO_TYPE_ID_METHODS = new java.lang.reflect.Method[0];
+
+	/**
+	 * getType()/getId() per packet class. Looking them up on every packet threw a NoSuchMethodException
+	 * (with a full stack trace) for nearly every packet sent to a ViaEntities player.
+	 */
+	static final ClassValue<java.lang.reflect.Method[]> TYPE_ID_METHODS = new ClassValue<>() {
+		@Override
+		protected java.lang.reflect.Method[] computeValue(Class<?> type) {
+			try {
+				return new java.lang.reflect.Method[] {type.getMethod("getType"), type.getMethod("getId")};
+			} catch (NoSuchMethodException | SecurityException e) {
+				return NO_TYPE_ID_METHODS;
+			}
+		}
+	};
+
 	public EntityDataHandler(ViaEntitiesPlugin plugin, Player player) {
 		this.plugin = plugin;
 		this.player = player;
@@ -79,17 +96,15 @@ public class EntityDataHandler extends ChannelOutboundHandlerAdapter {
 			simpleClassName.equals("ClientboundAddMobPacket");
 
 		if (!isSpawnPacket) {
-			try {
-				java.lang.reflect.Method getTypeMethod = msg.getClass().getMethod("getType");
-				java.lang.reflect.Method getIdMethod = msg.getClass().getMethod("getId");
-				if (getTypeMethod != null && getIdMethod != null) {
-					Object typeResult = getTypeMethod.invoke(msg);
+			java.lang.reflect.Method[] typeIdMethods = TYPE_ID_METHODS.get(msg.getClass());
+			if (typeIdMethods.length == 2) {
+				try {
+					Object typeResult = typeIdMethods[0].invoke(msg);
 					if (typeResult != null && typeResult.toString().contains("entity")) {
 						isSpawnPacket = true;
 					}
+				} catch (Exception e) {
 				}
-			} catch (NoSuchMethodException e) {
-			} catch (Exception e) {
 			}
 		}
 

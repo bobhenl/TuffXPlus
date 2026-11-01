@@ -472,6 +472,8 @@ public class Y0Plugin {
 	}
 
 	private void invalidateChunkCache(World w, int x, int z) {
+		// Nothing cached (no TuffX players lately): skip the key allocation and segment locks
+		if (chunkCache.size() == 0 && chunkCacheCombined.size() == 0) return;
 		WorldChunk k = new WorldChunk(w.getName(), x >> 4, z >> 4);
 		chunkCache.invalidate(k);
 		chunkCacheCombined.invalidate(k);
@@ -737,14 +739,19 @@ public class Y0Plugin {
 
 	public void handleBlockBreak(BlockBreakEvent event) {
 		if (event.getBlock().getY() < 0) {
-			handleBlockChange(event.getBlock().getLocation(), event.getBlock().getBlockData(), Material.AIR.createBlockData());
+			// Block and light updates only go to TuffX players, so skip building them when none are in this world
+			if (hasReadyPlayersInWorld(event.getBlock().getWorld())) {
+				handleBlockChange(event.getBlock().getLocation(), event.getBlock().getBlockData(), Material.AIR.createBlockData());
+			}
 			invalidateChunkCache(event.getBlock().getWorld(), event.getBlock().getX(), event.getBlock().getZ());
 		}
 	}
 
 	public void handleBlockPlace(BlockPlaceEvent event) {
 		if (event.getBlock().getY() < 0) {
-			handleBlockChange(event.getBlock().getLocation(), event.getBlockReplacedState().getBlockData(), event.getBlock().getBlockData());
+			if (hasReadyPlayersInWorld(event.getBlock().getWorld())) {
+				handleBlockChange(event.getBlock().getLocation(), event.getBlockReplacedState().getBlockData(), event.getBlock().getBlockData());
+			}
 			invalidateChunkCache(event.getBlock().getWorld(), event.getBlock().getX(), event.getBlock().getZ());
 		}
 	}
@@ -752,6 +759,11 @@ public class Y0Plugin {
 	public void handleBlockPhysics(BlockPhysicsEvent event) {
 		final Block block = event.getBlock();
 		if (block.getY() < 0) {
+			// Physics fires very often, so without a TuffX player in this world only drop the cached chunk
+			if (!hasReadyPlayersInWorld(block.getWorld())) {
+				invalidateChunkCache(block.getWorld(), block.getX(), block.getZ());
+				return;
+			}
 			final Location loc = block.getLocation();
 			final World world = loc.getWorld();
 			SchedulerCompat.runRegionLater(plugin, loc, () -> {
@@ -763,6 +775,12 @@ public class Y0Plugin {
 	}
 
 	public void handleBlockExplode(BlockExplodeEvent event) {
+		if (!hasReadyPlayersInWorld(event.getBlock().getWorld())) {
+			for (Block block : event.blockList()) {
+				if (block.getY() < 0) invalidateChunkCache(block.getWorld(), block.getX(), block.getZ());
+			}
+			return;
+		}
 		final List<Block> btu = new ArrayList<>(event.blockList());
 		for (Block block : btu) {
 			if (block.getY() >= 0) continue;
@@ -777,6 +795,10 @@ public class Y0Plugin {
 	public void handleBlockFromTo(BlockFromToEvent event) {
 		final Block block = event.getToBlock();
 		if (block.getY() < 0) {
+			if (!hasReadyPlayersInWorld(block.getWorld())) {
+				invalidateChunkCache(block.getWorld(), block.getX(), block.getZ());
+				return;
+			}
 			SchedulerCompat.runRegionLater(plugin, block.getLocation(), () -> {
 				sendSingleBlockUpdate(block.getLocation(), block.getBlockData());
 				invalidateChunkCache(block.getWorld(), block.getX(), block.getZ());
@@ -867,8 +889,10 @@ public class Y0Plugin {
 		final World world = loc.getWorld();
 
 		SchedulerCompat.runGlobal(plugin, () -> {
-			for (Player player : Bukkit.getOnlinePlayers()) {
-				if (!player.isOnline() || !isPlayerReady(player)) continue;
+			// Only TuffX players can receive this, so walk the ready set instead of every online player
+			for (UUID playerId : readyPlayers) {
+				Player player = Bukkit.getPlayer(playerId);
+				if (player == null || !player.isOnline() || !isPlayerReady(player)) continue;
 				if (!world.equals(player.getWorld())) continue;
 				if (player.getLocation().distanceSquared(loc) >= 4096) continue;
 				SchedulerCompat.runEntity(player, plugin, () -> {
@@ -908,7 +932,8 @@ public class Y0Plugin {
 		}
 	}
 
-	private boolean hasReadyPlayersInWorld(World world) {
+	boolean hasReadyPlayersInWorld(World world) {
+		if (readyPlayers.isEmpty()) return false;
 		for (UUID playerId : readyPlayers) {
 			Player player = plugin.getServer().getPlayer(playerId);
 			if (player != null && player.isOnline() && world.equals(player.getWorld())) {
